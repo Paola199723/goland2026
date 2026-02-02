@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	"log"
 	"time"
 
 	"github.com/Paola199723/backendgoland2026/internal/domain/entities"
@@ -77,7 +78,46 @@ func (uc *GetChallengesUseCase) ExecuteByPage(pageNum int) (*dto.LoginResponse, 
 			return nil, err
 		}
 
-		challenges = convertToDTO(dbChallenges)
+		// Si la BD está vacía, intentar obtener desde la API externa sin cursor
+		if len(dbChallenges) == 0 {
+			log.Printf("GetChallengesUseCase: DB empty for page %d, calling external API", pageNum)
+			apiResponse, err := uc.karenAIService.GetChallenges("")
+			if err == nil {
+				log.Printf("GetChallengesUseCase: external API returned %d items, next_page=%s", len(apiResponse.Items), apiResponse.NextPage)
+				// Convertir respuesta de API a DTOs y guardar en BD
+				nextPage = apiResponse.NextPage
+				challenges = apiResponse.Items
+
+				var challengesToSave []entities.Challenge
+				for _, c := range apiResponse.Items {
+					parsedTime, err := time.Parse(time.RFC3339Nano, c.Time)
+					if err != nil {
+						parsedTime = time.Now()
+					}
+
+					challengesToSave = append(challengesToSave, entities.Challenge{
+						Ticker:     c.Ticker,
+						TargetFrom: c.TargetFrom,
+						TargetTo:   c.TargetTo,
+						Company:    c.Company,
+						Action:     c.Action,
+						Brokerage:  c.Brokerage,
+						RatingFrom: c.RatingFrom,
+						RatingTo:   c.RatingTo,
+						Time:       parsedTime,
+					})
+				}
+
+				uc.challengeRepo.SaveChallenges(challengesToSave)
+				if nextPage != "" {
+					uc.challengeRepo.SaveNextPageCursor(nextPage)
+				}
+			} else {
+				challenges = convertToDTO(dbChallenges)
+			}
+		} else {
+			challenges = convertToDTO(dbChallenges)
+		}
 	}
 
 	// Obtener total de páginas

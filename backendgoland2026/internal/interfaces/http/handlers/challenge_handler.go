@@ -69,3 +69,15 @@ func (h *ChallengeHandler) GetChallenges(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// RefreshChallenges - fuerza la obtención desde la API externa y guarda en BD
+func (h *ChallengeHandler) RefreshChallenges(c *gin.Context) {
+	// Forzamos la ejecución para la página 1
+	response, err := h.getChallengesUC.ExecuteByPage(1)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+

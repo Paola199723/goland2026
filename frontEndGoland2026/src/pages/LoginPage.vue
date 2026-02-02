@@ -50,7 +50,7 @@
       </form>
 
       <p class="text-center text-gray-600 text-sm mt-6">
-        Demo: Usa cualquier correo y contraseña
+        Ingresa tu correo y contraseña para acceder
       </p>
     </div>
   </div>
@@ -64,8 +64,8 @@ import { useAuthStore } from '../stores/authStore'
 const authStore = useAuthStore()
 
 const form = ref({
-  email: 'casadiegosvaca@gmail.com',
-  password: 'password',
+  email: '',
+  password: '',
 })
 
 const handleLogin = async () => {
@@ -75,20 +75,21 @@ const handleLogin = async () => {
   try {
     const response = await authService.login(form.value.email, form.value.password)
     
-    authStore.setAuth(form.value.email, '')
-    authStore.setChallenges(response.challenges, response.total_pages, response.next_page)
-    authStore.setCurrentPage(1)
+    // Guardar token y información del usuario
+    authStore.setAuth(response.token, response.email, response.user_id, response.expires_at)
     
-    emit('login', form.value.email, '')
+    // Emitir evento para cambiar de página en App.vue
+    emit('login')
   } catch (err: any) {
-    authStore.setError(err.response?.data?.error || 'Error al iniciar sesión')
+    const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Error al iniciar sesión'
+    authStore.setError(errorMessage)
   } finally {
     authStore.setLoading(false)
   }
 }
 
 const emit = defineEmits<{
-  login: [email: string, token: string]
+  login: []
 }>()
 </script>
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/Paola199723/backendgoland2026/internal/interfaces/dto"
 )
@@ -12,10 +13,6 @@ import (
 const (
 	KarenAIBaseURL    = "https://api.karenai.click"
 	ChallengeEndpoint = "/swechallenge/list"
-)
-
-const (
-	KarenAIToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdHRlbXB0cyI6MSwiZW1haWwiOiJjYXNhZGllZ29zdmFjYUBnbWFpbC5jb20iLCJleHAiOjE3Njk1MzYyNTgsImlkIjoiIiwicGFzc3dvcmQiOiJ0IFx0RlJPTSBcdCB1c2VycyBcdCBXSEVSRVx0IHVzZXJuYW1lXHQgaXMgXHQgbm90IFx0IG51bGwgXHQgQU5EIFx0IHBhc3N3b3JkIFx0IGlzIFx0IG5vdCBcdCBudWxsIFx0IFVOSU9OIFx0IFNFTEVDVCBcdCB1c2VybmFtZSwgcGFzc3dvcmQgXHQgYXMgXHQgIHQifQ.jR8qHGyzeCWfDl-0tXheTDCI70FWCpS7Rq2-r0uwX1M"
 )
 
 type KarenAIService struct {
@@ -40,7 +37,13 @@ func (s *KarenAIService) GetChallenges(nextPage string) (*dto.ChallengeAPIRespon
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", KarenAIToken))
+	// Obtener token desde variable de entorno
+	karenAIToken := os.Getenv("TOKEN")
+	if karenAIToken == "" {
+		return nil, fmt.Errorf("TOKEN environment variable not set")
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", karenAIToken))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
