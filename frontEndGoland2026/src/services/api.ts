@@ -53,10 +53,3 @@ export const challengeService = {
     return response.data
   },
 }
-
-        token,
-      },
-    })
-    return response.data
-  },
-}
