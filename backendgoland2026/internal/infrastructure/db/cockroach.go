@@ -57,8 +57,7 @@ func createTables() {
 		rating_from VARCHAR(50),
 		rating_to VARCHAR(50),
 		time TIMESTAMP,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		UNIQUE(ticker, DATE(time))
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 	`
 

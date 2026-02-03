@@ -11,4 +11,7 @@ type ChallengeRepository interface {
 	SaveNextPageCursor(cursor string) error
 	GetNextPageCursor(pageNum int) (string, error)
 	GetTotalPages() (int, error)
+	GetChallengesFromToday() ([]entities.Challenge, error)
+	SaveCursorForDate(cursor string, date string) error
+	GetCursorForToday() (string, error)
 }

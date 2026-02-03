@@ -23,125 +23,82 @@ func NewGetChallengesUseCase(challengeRepo repositories.ChallengeRepository) *Ge
 }
 
 func (uc *GetChallengesUseCase) ExecuteByPage(pageNum int) (*dto.LoginResponse, error) {
-	log.Printf("🔍 GetChallengesUseCase.ExecuteByPage called with pageNum=%d", pageNum)
-	
-	// Obtener cursor de la página
-	cursor, err := uc.challengeRepo.GetNextPageCursor(pageNum)
-	log.Printf("🔍 GetNextPageCursor returned: cursor='%s', err=%v", cursor, err)
+	log.Printf(" GetChallengesUseCase.ExecuteByPage called with pageNum=%d", pageNum)
+
+	// PASO 1: Verificar si hay desafíos en la BD (caché)
+	allChallenges, err := uc.challengeRepo.GetChallengesByPage(1)
+	if err != nil {
+		log.Printf("Error querying all challenges: %v", err)
+	}
 
 	var challenges []dto.ChallengeDTO
 	var nextPage string
 
-	if err == nil && cursor != "" {
-		log.Printf("🔍 Using cursor from DB")
-		// Si existe cursor, usarlo para obtener datos de la API
-		apiResponse, err := uc.karenAIService.GetChallenges(cursor)
+	if len(allChallenges) > 0 {
+		// PASO 2a: Si hay datos en caché, usarlos
+		log.Printf(" Found %d challenges in cache", len(allChallenges))
+
+		challenges = convertToDTO(allChallenges)
+
+		// Obtener el cursor guardado
+		cursor, err := uc.challengeRepo.GetCursorForToday()
 		if err != nil {
-			log.Printf("⚠️ API call failed: %v", err)
-			// Si falla, obtener de la BD
-			dbChallenges, _ := uc.challengeRepo.GetChallengesByPage(pageNum)
-			challenges = convertToDTO(dbChallenges)
-		} else {
-			log.Printf("✅ API call succeeded, got %d items", len(apiResponse.Items))
-			// Convertir respuesta de API a DTOs
-			nextPage = apiResponse.NextPage
-			challenges = apiResponse.Items
-
-			// Guardar challenges en BD
-			var challengesToSave []entities.Challenge
-			for _, c := range apiResponse.Items {
-				// Parsear el time string a time.Time
-				parsedTime, err := time.Parse(time.RFC3339Nano, c.Time)
-				if err != nil {
-					parsedTime = time.Now()
-				}
-
-				challengesToSave = append(challengesToSave, entities.Challenge{
-					Ticker:     c.Ticker,
-					TargetFrom: c.TargetFrom,
-					TargetTo:   c.TargetTo,
-					Company:    c.Company,
-					Action:     c.Action,
-					Brokerage:  c.Brokerage,
-					RatingFrom: c.RatingFrom,
-					RatingTo:   c.RatingTo,
-					Time:       parsedTime,
-				})
-			}
-
-			// Guardar en BD si no están ya guardadas
-			uc.challengeRepo.SaveChallenges(challengesToSave)
-
-			// Guardar cursor si existe
-			if nextPage != "" {
-				uc.challengeRepo.SaveNextPageCursor(nextPage)
-			}
+			log.Printf(" Error getting cursor: %v", err)
 		}
+		nextPage = cursor
+
 	} else {
-		log.Printf("🔍 No cursor from DB or cursor is empty. Trying DB...")
-		// Obtener de la BD
-		dbChallenges, err := uc.challengeRepo.GetChallengesByPage(pageNum)
+		// PASO 2b: Si no hay datos en caché, consultar /swechallenge/list
+		log.Printf(" No challenges in cache, calling /swechallenge/list")
+
+		apiResponse, err := uc.karenAIService.GetChallenges("")
 		if err != nil {
-			log.Printf("❌ DB error: %v", err)
-			return nil, err
+			log.Printf(" API call failed: %v", err)
+			return &dto.LoginResponse{
+				Challenges: []dto.ChallengeDTO{},
+				NextPage:   "",
+				TotalPages: 1,
+			}, nil
 		}
 
-		log.Printf("🔍 DB returned %d challenges", len(dbChallenges))
+		log.Printf("API call succeeded: got %d items, next_page='%s'", len(apiResponse.Items), apiResponse.NextPage)
 
-		// Si la BD está vacía, intentar obtener desde la API externa sin cursor
-		if len(dbChallenges) == 0 {
-			log.Printf("🔍 DB empty for page %d, calling external API without cursor", pageNum)
-			apiResponse, err := uc.karenAIService.GetChallenges("")
-			if err == nil && len(apiResponse.Items) > 0 {
-				log.Printf("✅ External API succeeded: got %d items, next_page='%s'", len(apiResponse.Items), apiResponse.NextPage)
-				// Convertir respuesta de API a DTOs y guardar en BD
-				nextPage = apiResponse.NextPage
-				challenges = apiResponse.Items
-
-				var challengesToSave []entities.Challenge
-				for _, c := range apiResponse.Items {
-					parsedTime, err := time.Parse(time.RFC3339Nano, c.Time)
-					if err != nil {
-						parsedTime = time.Now()
-					}
-
-					challengesToSave = append(challengesToSave, entities.Challenge{
-						Ticker:     c.Ticker,
-						TargetFrom: c.TargetFrom,
-						TargetTo:   c.TargetTo,
-						Company:    c.Company,
-						Action:     c.Action,
-						Brokerage:  c.Brokerage,
-						RatingFrom: c.RatingFrom,
-						RatingTo:   c.RatingTo,
-						Time:       parsedTime,
-					})
-				}
-
-				saveErr := uc.challengeRepo.SaveChallenges(challengesToSave)
-				log.Printf("🔍 SaveChallenges result: %v", saveErr)
-				
-				if nextPage != "" {
-					uc.challengeRepo.SaveNextPageCursor(nextPage)
-				}
-			} else if err == nil && len(apiResponse.Items) == 0 {
-				// Si API devuelve items vacíos, simplemente usar eso
-				log.Printf("⚠️ External API returned empty list")
-				challenges = apiResponse.Items
-				nextPage = apiResponse.NextPage
-			} else {
-				// API fallo - usar datos de mock como fallback
-				log.Printf("⚠️ External API failed: %v - using mock data", err)
-				mockResponse := uc.karenAIService.GetMockChallenges("")
-				challenges = mockResponse.Items
-				nextPage = mockResponse.NextPage
+		// PASO 3: Guardar lo que retorna /swechallenge/list en la tabla challenges
+		var challengesToSave []entities.Challenge
+		for _, c := range apiResponse.Items {
+			parsedTime, err := time.Parse(time.RFC3339Nano, c.Time)
+			if err != nil {
+				parsedTime = time.Now()
 			}
-		} else {
-			challenges = convertToDTO(dbChallenges)
+
+			challengesToSave = append(challengesToSave, entities.Challenge{
+				Ticker:     c.Ticker,
+				TargetFrom: c.TargetFrom,
+				TargetTo:   c.TargetTo,
+				Company:    c.Company,
+				Action:     c.Action,
+				Brokerage:  c.Brokerage,
+				RatingFrom: c.RatingFrom,
+				RatingTo:   c.RatingTo,
+				Time:       parsedTime,
+			})
 		}
+
+		saveErr := uc.challengeRepo.SaveChallenges(challengesToSave)
+		log.Printf("SaveChallenges result: %v", saveErr)
+
+		// PASO 4: Guardar el next_page en page_cursors
+		if apiResponse.NextPage != "" {
+			cursorErr := uc.challengeRepo.SaveCursorForDate(apiResponse.NextPage, time.Now().Format("2006-01-02"))
+			log.Printf("SaveCursorForDate result: %v", cursorErr)
+		}
+
+		// PASO 5: Retornar al frontend
+		challenges = apiResponse.Items
+		nextPage = apiResponse.NextPage
 	}
 
-	log.Printf("🔍 Returning %d challenges to handler", len(challenges))
+	log.Printf(" Returning %d challenges to handler with next_page='%s'", len(challenges), nextPage)
 
 	// Obtener total de páginas
 	totalPages, err := uc.challengeRepo.GetTotalPages()
@@ -174,14 +131,16 @@ func convertToDTO(challenges []entities.Challenge) []dto.ChallengeDTO {
 	}
 	return dtos
 }
+
 // ExecuteByPageCursor obtiene desafíos usando un cursor de paginación
+// Guarda los resultados en la BD y actualiza el next_page en page_cursors
 func (uc *GetChallengesUseCase) ExecuteByPageCursor(nextPageCursor string) (*dto.LoginResponse, error) {
-	log.Printf("🔍 GetChallengesUseCase.ExecuteByPageCursor called with cursor='%s'", nextPageCursor)
-	
+	log.Printf(" GetChallengesUseCase.ExecuteByPageCursor called with cursor='%s'", nextPageCursor)
+
 	// Obtener datos de la API usando el cursor
 	apiResponse, err := uc.karenAIService.GetChallenges(nextPageCursor)
 	if err != nil {
-		log.Printf("❌ API call failed: %v", err)
+		log.Printf("API call failed: %v", err)
 		return &dto.LoginResponse{
 			Challenges: []dto.ChallengeDTO{},
 			NextPage:   "",
@@ -189,13 +148,13 @@ func (uc *GetChallengesUseCase) ExecuteByPageCursor(nextPageCursor string) (*dto
 		}, nil
 	}
 
-	log.Printf("✅ API call succeeded: got %d items, next_page='%s'", len(apiResponse.Items), apiResponse.NextPage)
+	log.Printf("API call succeeded: got %d items, next_page='%s'", len(apiResponse.Items), apiResponse.NextPage)
 
 	// Convertir respuesta de API a DTOs
 	challenges := apiResponse.Items
 	nextPage := apiResponse.NextPage
 
-	// Guardar challenges en BD para caché
+	// GUARDAR: Guardar challenges en BD para caché
 	var challengesToSave []entities.Challenge
 	for _, c := range apiResponse.Items {
 		parsedTime, err := time.Parse(time.RFC3339Nano, c.Time)
@@ -216,13 +175,22 @@ func (uc *GetChallengesUseCase) ExecuteByPageCursor(nextPageCursor string) (*dto
 		})
 	}
 
-	uc.challengeRepo.SaveChallenges(challengesToSave)
+	saveErr := uc.challengeRepo.SaveChallenges(challengesToSave)
+	log.Printf("SaveChallenges result: %v", saveErr)
+
+	// GUARDAR: Guardar el next_page en page_cursors
+	if nextPage != "" {
+		cursorErr := uc.challengeRepo.SaveCursorForDate(nextPage, time.Now().Format("2006-01-02"))
+		log.Printf("SaveCursorForDate result: %v", cursorErr)
+	}
 
 	// Obtener total de páginas
 	totalPages, err := uc.challengeRepo.GetTotalPages()
 	if err != nil {
 		totalPages = 1
 	}
+
+	log.Printf("Returning %d challenges with next_page='%s'", len(challenges), nextPage)
 
 	return &dto.LoginResponse{
 		Challenges: challenges,
