@@ -33,6 +33,17 @@ func GetConnection() *sql.DB {
 }
 
 func createTables() {
+	// Crear tabla de usuarios
+	usersTable := `
+	CREATE TABLE IF NOT EXISTS users (
+		id SERIAL PRIMARY KEY,
+		email VARCHAR(255) UNIQUE NOT NULL,
+		password_encrypted TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	`
+
 	// Crear tabla de challenges
 	challengesTable := `
 	CREATE TABLE IF NOT EXISTS challenges (
@@ -60,17 +71,34 @@ func createTables() {
 	);
 	`
 
+	// Crear tabla de tokens de autenticación
+	tokensTable := `
+	CREATE TABLE IF NOT EXISTS auth_tokens (
+		id SERIAL PRIMARY KEY,
+		user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		token VARCHAR(500) UNIQUE NOT NULL,
+		expires_at TIMESTAMP NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	`
+
 	// Crear índices
 	indexTicker := `CREATE INDEX IF NOT EXISTS idx_challenges_ticker ON challenges(ticker);`
 	indexTime := `CREATE INDEX IF NOT EXISTS idx_challenges_time ON challenges(time DESC);`
 	indexDate := `CREATE INDEX IF NOT EXISTS idx_challenges_date ON challenges(DATE(time));`
+	indexUserEmail := `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`
+	indexTokenExpires := `CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires ON auth_tokens(expires_at);`
 
 	queries := []string{
+		usersTable,
 		challengesTable,
 		cursorTable,
+		tokensTable,
 		indexTicker,
 		indexTime,
 		indexDate,
+		indexUserEmail,
+		indexTokenExpires,
 	}
 
 	for _, query := range queries {

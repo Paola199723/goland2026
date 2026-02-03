@@ -79,20 +79,24 @@
         </div>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="authStore.totalPages > 1" class="mt-8 flex justify-center items-center space-x-2">
+      <!-- Pagination (cursor-based: next_page) -->
+      <div class="mt-8 flex justify-center items-center space-x-4">
         <button
-          v-for="page in authStore.totalPages"
-          :key="page"
-          @click="goToPage(page)"
-          :class="[
-            'px-4 py-2 rounded-lg font-medium transition',
-            page === authStore.currentPage
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-gray-900 border border-gray-300 hover:bg-gray-50'
-          ]"
+          @click="goPrevious"
+          :disabled="currentPage <= 1"
+          class="px-4 py-2 rounded-lg font-medium transition bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
         >
-          {{ page }}
+          Anterior
+        </button>
+
+        <div class="text-sm text-gray-600">Página {{ currentPage }}</div>
+
+        <button
+          @click="goNext"
+          :disabled="!authStore.nextPageCursor"
+          class="px-4 py-2 rounded-lg font-medium transition bg-blue-600 text-white disabled:opacity-50"
+        >
+          Siguiente
         </button>
       </div>
 
@@ -108,29 +112,66 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { challengeService } from '../services/api'
 import { useAuthStore } from '../stores/authStore'
 
 const authStore = useAuthStore()
 
-const goToPage = async (page: number) => {
-  authStore.setCurrentPage(page)
+// Local page counter to display page number when using cursor-based pagination
+const currentPage = ref(1)
+
+// Stack to keep previous cursors for "Anterior" functionality
+const prevCursors: string[] = []
+
+const goToPage = async (nextPageCursor?: string) => {
   authStore.setLoading(true)
 
   try {
-    const response = await challengeService.getChallenges(page)
+    const response = await challengeService.getChallenges(nextPageCursor)
+
+    // Si recibimos next_page, pushear el cursor actual para poder volver atrás
+    if (authStore.nextPageCursor && !nextPageCursor) {
+      // no-op
+    }
+
+    // Actualizar store con resultados
     authStore.setChallenges(response.challenges, response.total_pages, response.next_page)
+
   } catch (error) {
     console.error('Error loading page:', error)
+    authStore.setError('Error al cargar los desafíos')
   } finally {
     authStore.setLoading(false)
   }
+}
+
+const goNext = async () => {
+  // guardar cursor actual para poder retroceder
+  prevCursors.push(authStore.nextPageCursor || '')
+  await goToPage(authStore.nextPageCursor)
+  currentPage.value += 1
+}
+
+const goPrevious = async () => {
+  if (prevCursors.length === 0) return
+  const prev = prevCursors.pop() || ''
+  await goToPage(prev === '' ? undefined : prev)
+  if (currentPage.value > 1) currentPage.value -= 1
 }
 
 const handleLogout = () => {
   authStore.logout()
   emit('logout')
 }
+
+// Cargar desafíos cuando se monta el componente
+onMounted(async () => {
+  if (authStore.challenges.length === 0) {
+    // Cargar la primera página (sin cursor)
+    await goToPage()
+  }
+})
 
 const emit = defineEmits<{
   logout: []
