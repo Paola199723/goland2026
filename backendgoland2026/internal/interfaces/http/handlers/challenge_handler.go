@@ -47,12 +47,21 @@ func (h *ChallengeHandler) Login(c *gin.Context) {
 
 // GetChallenges godoc
 // @Summary Get challenges by page
-// @Description Get challenges with pagination
+// @Description Get challenges with pagination using next_page cursor or page number
 // @Produce json
+// @Param next_page query string false "Next page cursor"
 // @Param page query int false "Page number" default(1)
 // @Success 200 {object} dto.LoginResponse
 // @Router /api/challenges [get]
 func (h *ChallengeHandler) GetChallenges(c *gin.Context) {
+	// Obtener email del contexto (puesto por el middleware de auth)
+	email, exists := c.Get("email")
+	if !exists {
+		email = ""
+	}
+	
+	// Soportar tanto next_page cursor como page number
+	nextPageCursor := c.Query("next_page")
 	pageStr := c.DefaultQuery("page", "1")
 
 	page, err := strconv.Atoi(pageStr)
@@ -60,11 +69,25 @@ func (h *ChallengeHandler) GetChallenges(c *gin.Context) {
 		page = 1
 	}
 
-	response, err := h.getChallengesUC.ExecuteByPage(page)
+	// Si hay next_page, usarlo para obtener datos
+	// Si no, usar el page number
+	var response *dto.LoginResponse
+	
+	if nextPageCursor != "" {
+		// Usar cursor para paginación
+		response, err = h.getChallengesUC.ExecuteByPageCursor(nextPageCursor)
+	} else {
+		// Usar page number para paginación
+		response, err = h.getChallengesUC.ExecuteByPage(page)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Agregar email a la respuesta
+	response.Email = email.(string)
 
 	c.JSON(http.StatusOK, response)
 }

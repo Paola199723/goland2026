@@ -1,5 +1,11 @@
 # Backend Goland 2026
 
+## ejecucion rapida de backend y frontend 
+Puedes ejecutar todos los procesos en cponsola ejecutando lo siguinte comando 
+```go
+bash START.sh
+```
+
 Backend API desarrollado en Go con Clean Architecture.
 
 
