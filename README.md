@@ -1,5 +1,12 @@
 # Backend Goland 2026
 
+## Puedes probar directamenete el proyecto desplegado. 
+https://goland2026-front.onrender.com
+
+##  Usuario de pruebas para login
+user: casadiegosvaca@gmail.com
+clave: mipass123
+
 ## ejecucion rapida de backend y frontend 
 Puedes ejecutar todos los procesos en cponsola ejecutando lo siguinte comando 
 ```go
