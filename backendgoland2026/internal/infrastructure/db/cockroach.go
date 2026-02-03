@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"log"
+	"os"
 
 	_ "github.com/lib/pq"
 )
@@ -10,7 +11,8 @@ import (
 var DB *sql.DB
 
 func Connect() {
-	connStr := "postgresql://root@localhost:26257/market_data?sslmode=disable"
+	dbCrockroach := os.Getenv("db_host")
+	connStr := dbCrockroach
 
 	var err error
 	DB, err = sql.Open("postgres", connStr)

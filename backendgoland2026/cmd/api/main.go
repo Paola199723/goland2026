@@ -17,6 +17,14 @@ func main() {
 		log.Println("⚠️ No .env file found, using system environment variables")
 	}
 
+	portfront := os.Getenv("FRONTEND_PORT")
+	if portfront == "" {
+		portfront = "5173"
+	}
+	ipFront := os.Getenv("IP")
+	if ipFront == "" {
+		ipFront = "http://localhost"
+	}
 	// Verificar que TOKEN esté disponible
 	token := os.Getenv("TOKEN")
 	if token == "" {
@@ -32,8 +40,7 @@ func main() {
 	// Configurar CORS para permitir requests desde el frontend
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{
-		"http://localhost:5173",
-		"http://127.0.0.1:5173",
+		ipFront + ":" + portfront,
 	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
@@ -46,5 +53,5 @@ func main() {
 	log.Println("🚀 Server running on http://localhost:8081")
 	log.Println("📊 Frontend available at http://localhost:5173")
 
-	r.Run(":8081")
+	r.Run(os.Getenv("IP") + ":" + os.Getenv("PORT"))
 }
