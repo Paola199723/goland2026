@@ -231,4 +231,7 @@ type ChallengeDTO struct {
 }
 ```
 
-
+Flujo de Consulta de lista en backend y frontend
+![Flujo del backend](flujo_lista.png)
+Flujo de creación de recomendación en backend y frontend
+![Flujo del backend](recomendacion.png)
