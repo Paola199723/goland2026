@@ -23,8 +23,8 @@ func main() {
 	}
 
 	port := os.Getenv("PORT")
-	if hostfront == "" {
-		hostfront = "http://localhost:5173"
+	if port == "" {
+		port = "8081"
 	}
 	// Verificar que TOKEN esté disponible
 	token := os.Getenv("TOKEN")
