@@ -279,7 +279,8 @@ async function fetchRecommendations() {
     return
   }
   try {
-    const res = await fetch('http://localhost:8081/api/recommendation/today', {
+    const res = await fetch(
+  `${import.meta.env.VITE_API_BASE_URL}/api/recommendation/today`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
