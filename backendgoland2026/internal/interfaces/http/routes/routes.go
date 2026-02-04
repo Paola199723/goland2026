@@ -15,6 +15,7 @@ func Register(r *gin.Engine) {
 	userRepo := persistence.NewUserRepository()
 	authLoginUC := usecases.NewAuthLoginUseCase(userRepo)
 	authHandler := handlers.NewAuthHandler(authLoginUC)
+	recommendationHandler := handlers.NewRecommendationHandler()
 
 	auth := api.Group("/auth")
 	{
@@ -45,5 +46,10 @@ func Register(r *gin.Engine) {
 	authVerify.Use(middleware.AuthMiddleware())
 	{
 		authVerify.GET("/verify", authHandler.VerifyToken)
+	}
+	recommendation := api.Group("/recommendation")
+	recommendation.Use(middleware.AuthMiddleware())
+	{
+		recommendation.GET("/today", recommendationHandler.GetTodayRecommendation)
 	}
 }
